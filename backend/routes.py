@@ -206,7 +206,8 @@ async def _emit_stream(
         ):
             if mode == "messages":
                 msg, _meta = chunk
-                if getattr(msg, "content", None):
+                # 只推 LLM 生成的 token（AIMessage）；ToolMessage 等工具原始输出不进对话流
+                if getattr(msg, "type", "") == "ai" and getattr(msg, "content", None):
                     last_text += msg.content
                     yield _sse({"type": "progress", "content": msg.content})
             elif mode == "updates":
@@ -228,22 +229,22 @@ async def _emit_stream(
     gs = agent.graph.get_state(config)
     values = gs.values or {}
     msgs = values.get("messages", [])
-    last_render = None
     if not gs.next and not values.get("__interrupt__"):
-        last_render = _record_tool_calls(agent, msgs, session_id)
+        # 落库（call/messages），但不再把原始表格传给前端：
+        # LLM 已基于工具真实输出翻译为中文 markdown 表格，统一由前端 MarkdownMessage 渲染，避免重复。
+        _record_tool_calls(agent, msgs, session_id)
+    last_render = None
     if msgs:
         final = msgs[-1]
         if hasattr(final, "content") and final.content:
             last_text = final.content
     # 兜底：本次执行未产生任何 ToolMessage（LLM 没调工具直接自由作答）→ 替换为固定提示
-    if (
-        not gs.next
-        and not values.get("__interrupt__")
-        and not any(isinstance(m, ToolMessage) for m in msgs[start_n:])
-        and last_text.strip()
-    ):
-        last_text = OUT_OF_SCOPE_HINT
-    yield _sse({"type": "result", "text": last_text, "render": last_render})
+    if not gs.next and not values.get("__interrupt__"):
+        if not any(isinstance(m, ToolMessage) for m in msgs[start_n:]) and last_text.strip():
+            last_text = OUT_OF_SCOPE_HINT
+        # 正常完成才发 result；interrupt 挂起时对话未结束（等用户审批），
+        # 不发 result 以免前端清掉审批卡，resume 后由下一轮 _emit_stream 出结果。
+        yield _sse({"type": "result", "text": last_text, "render": last_render})
 
 
 @router.post("/chat")

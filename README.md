@@ -34,9 +34,9 @@ FastAPI 后端 (Python)
 #    部署与启动方式见 skynet-mcp 仓库 README：https://github.com/losophy/skynet-mcp
 #    启动后确认 http://127.0.0.1:8765/mcp 可访问，再继续下面步骤
 
-# 2) 客户端后端 venv（用 uv 托管的 Python 3.12）
+# 2) 客户端后端 venv（用 uv 托管的 Python 3.12；uv venv 不内置 pip，装包用 uv pip）
 uv venv --python 3.12 .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # 3) 前端
 cd frontend; npm install; npm run build; cd ..

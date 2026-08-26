@@ -198,9 +198,164 @@ def test_out_of_scope_llm_free_text_replaced() -> None:
     print("PASS 4 LLM 自由发挥被替换为提示")
 
 
+async def fake_help(**kw) -> str:
+    executed.append("help")
+    return (
+        "Command|Description\n"
+        "|---|---|\n"
+        "help|This help message\n"
+        "list|List all the service\n"
+        "kill|kill address : kill service\n"
+    )
+
+
+def build_agent_with_help(model):
+    list_tool = StructuredTool.from_function(
+        name="list", description="列出所有服务", coroutine=fake_list, args_schema=Args
+    )
+    kill_tool = StructuredTool.from_function(
+        name="kill",
+        description="【危险】强制中止一个 lua 服务",
+        coroutine=fake_kill,
+        args_schema=KillArgs,
+    )
+    help_tool = StructuredTool.from_function(
+        name="help", description="显示帮助", coroutine=fake_help, args_schema=Args
+    )
+    danger_map = {"list": "safe", "kill": "high", "help": "safe"}
+    return SkynetAgent([list_tool, kill_tool, help_tool], danger_map, model=model)
+
+
+def test_help_call_suppresses_render() -> None:
+    """LLM 调了 help → result.render 应为 None（前端不渲染英文原表，让 LLM 翻译呈现）。"""
+    import json
+    import os
+    import tempfile
+
+    from backend import routes, state
+    from backend.db import Database
+
+    state.db = Database(os.path.join(tempfile.mkdtemp(), "help.db"))
+    executed.clear()
+    model = FakeMessagesListChatModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "help", "args": {}, "id": "c_help"}],
+            ),
+            AIMessage(content="以下是所有命令的中文说明：..."),
+        ]
+    )
+    agent = build_agent_with_help(model)
+    config = {"configurable": {"thread_id": "t-help-suppress"}}
+
+    async def run():
+        events = []
+        async for ev in routes._emit_stream(
+            agent, config,
+            {"messages": [HumanMessage(content="查看支持的全部命令")]},
+            None,
+        ):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(run())
+    parsed = [json.loads(ev.replace("data: ", "", 1)) for ev in events]
+    results = [p for p in parsed if p["type"] == "result"]
+    assert results, "应产生 result 事件"
+    assert results[-1]["render"] is None, f"help 后 render 应被抑制: {results[-1]!r}"
+    assert "help" in executed, "help 应被执行"
+    print("PASS 5 调 help 时不渲染原表")
+
+
+def test_progress_does_not_leak_tool_output() -> None:
+    """progress 事件只含 LLM token，不含 ToolMessage 原始输出（如 list 的 `snlua ...`）。"""
+    import json
+    import os
+    import tempfile
+
+    from backend import routes, state
+    from backend.db import Database
+
+    state.db = Database(os.path.join(tempfile.mkdtemp(), "progress.db"))
+    executed.clear()
+    model = FakeMessagesListChatModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "list", "args": {}, "id": "c_list"}],
+            ),
+            AIMessage(content="共 2 个服务：cmaster、cslave"),
+        ]
+    )
+    agent = build_agent(model)
+    config = {"configurable": {"thread_id": "t-progress"}}
+
+    async def run():
+        events = []
+        async for ev in routes._emit_stream(
+            agent, config, {"messages": [HumanMessage(content="列出所有服务")]}, None
+        ):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(run())
+    parsed = [json.loads(ev.replace("data: ", "", 1)) for ev in events]
+    progress = [p["content"] for p in parsed if p["type"] == "progress"]
+    joined = "".join(progress)
+    assert "snlua" not in joined, f"progress 泄漏了工具原始输出: {joined!r}"
+    assert "cmaster" in joined or "共 2 个服务" in joined, f"progress 应有 LLM 回复: {joined!r}"
+    print("PASS 6 progress 不泄漏工具原始输出")
+
+
+def test_interrupt_pending_no_result() -> None:
+    """interrupt 挂起时不发 result（前端保留审批卡）；resume approve 后才发 result。"""
+    import json
+    import os
+    import tempfile
+
+    from backend import routes, state
+    from backend.db import Database
+
+    state.db = Database(os.path.join(tempfile.mkdtemp(), "int.db"))
+    executed.clear()
+    model = FakeMessagesListChatModel(
+        responses=[
+            AIMessage(
+                content="我来杀掉它",
+                tool_calls=[{"name": "kill", "args": {"addr": "3"}, "id": "c_kill"}],
+            ),
+            AIMessage(content="已执行 kill"),
+        ]
+    )
+    agent = build_agent(model)
+    config = {"configurable": {"thread_id": "t-int-noresult"}}
+
+    async def run(initial):
+        events = []
+        async for ev in routes._emit_stream(agent, config, initial, None):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(run({"messages": [HumanMessage(content="杀掉 3")]}))
+    parsed = [json.loads(e.replace("data: ", "", 1)) for e in events]
+    assert any(p["type"] == "human_approval" for p in parsed), "应触发 human_approval"
+    assert not any(p["type"] == "result" for p in parsed), "interrupt 挂起不应发 result"
+    assert not executed, "审批前不应执行"
+
+    events2 = asyncio.run(run(Command(resume={"decision": "approve"})))
+    parsed2 = [json.loads(e.replace("data: ", "", 1)) for e in events2]
+    assert any(p["type"] == "result" for p in parsed2), "resume 后应发 result"
+    assert "kill:3" in executed, "approve 后应执行 kill"
+    print("PASS 7 interrupt 挂起不发 result")
+
+
 if __name__ == "__main__":
     test_normal_tool_call()
     test_danger_interrupt_approve()
     test_danger_interrupt_reject()
     test_out_of_scope_llm_free_text_replaced()
+    test_help_call_suppresses_render()
+    test_progress_does_not_leak_tool_output()
+    test_interrupt_pending_no_result()
     print("ALL PASS")

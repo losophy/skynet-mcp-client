@@ -1,5 +1,6 @@
 import type { Message } from "../types/agent";
 import HumanApprovalCard from "./HumanApprovalCard";
+import MarkdownMessage from "./MarkdownMessage";
 import ResultChart from "./ResultChart";
 import ResultTable from "./ResultTable";
 
@@ -24,10 +25,21 @@ export default function MessageBubble({ message, onFeedback }: Props) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] space-y-2">
-        {message.content && (
-          <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2 text-sm whitespace-pre-wrap">
-            {message.content}
-            {message.streaming && (
+        {(message.content || message.streaming) && (
+          <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2 text-sm">
+            {message.content ? (
+              <MarkdownMessage text={message.content} />
+            ) : (
+              <span className="inline-flex items-center gap-1 text-gray-400">
+                <span>处理中</span>
+                <span className="inline-flex gap-0.5 ml-0.5">
+                  <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                  <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.2s]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.4s]" />
+                </span>
+              </span>
+            )}
+            {message.content && message.streaming && (
               <span className="inline-block w-2 h-4 ml-1 align-middle bg-gray-400 animate-pulse" />
             )}
           </div>

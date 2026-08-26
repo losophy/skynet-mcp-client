@@ -51,3 +51,42 @@ def test_malformed_line_does_not_crash() -> None:
     r = parse_tool_output("stat", "1\t0\n2\t0\t0\t100\n")
     assert len(r["rows"]) == 2
     assert r["rows"][0]["pending"] == ""
+
+
+def test_help_parses_markdown_table() -> None:
+    r = parse_tool_output(
+        "help",
+        "【命令】|用途\n|---|---|\n**help**|显示帮助信息\n**list**|列出所有服务\n",
+    )
+    assert r["columns"] == ["【命令】", "用途"]
+    assert r["rows"][0]["【命令】"] == "help"
+    assert r["rows"][1]["用途"] == "列出所有服务"
+    assert r["fallback"] is False
+
+
+def test_help_parses_ascii_md_separator() -> None:
+    # skynet-mcp help 实际输出：`+--------+--------+` 分隔线
+    r = parse_tool_output(
+        "help",
+        "【命令】|用途\n+--------+--------+\n**help**|显示帮助信息\n**list**|列出所有服务\n",
+    )
+    assert r["columns"] == ["【命令】", "用途"]
+    assert len(r["rows"]) == 2
+    assert r["rows"][0]["【命令】"] == "help"
+    assert r["fallback"] is False
+
+
+def test_help_parses_tab_still_works() -> None:
+    # tab 分隔兼容：既有行为是首行当列名
+    r = parse_tool_output("help", "help\t显示帮助信息\nlist\t列出所有服务\n")
+    assert r["fallback"] is False
+    assert r["columns"] == ["help", "显示帮助信息"]
+    assert r["rows"][0]["help"] == "list"
+
+
+def test_unknown_tool_with_markdown_table_falls_back_to_table() -> None:
+    # 未注册工具 + markdown 表格：不再回落原文，而是解析成表格
+    r = parse_tool_output("info", "字段|值\n|---|---|\na|1\nb|2\n")
+    assert r["fallback"] is False
+    assert r["columns"] == ["字段", "值"]
+    assert len(r["rows"]) == 2

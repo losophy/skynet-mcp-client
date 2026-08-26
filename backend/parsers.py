@@ -30,6 +30,46 @@ def _to_table(columns: list[str], rows: list[list[str]]) -> dict:
     }
 
 
+def _is_md_sep_line(s: str) -> bool:
+    """markdown 表格分隔线：`|---|---|`、`| --- |`、`+--------+--------+`。"""
+    s = s.strip()
+    if re.fullmatch(r"\|?[\s:|-]+\|?", s):
+        rest = re.sub(r"[\s:\-|]", "", s)
+        return "-" in s and not rest
+    if re.fullmatch(r"\+[-+=]+\+", s):
+        return True
+    return False
+
+
+def _split_md_row(s: str) -> list[str]:
+    """按 `|` 拆分一行 markdown 表格：去首尾 `|` 与 `**`/反引号 强调。"""
+    s = s.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|") and not s.endswith("\\|"):
+        s = s[:-1]
+    return [c.strip().replace("**", "").replace("`", "").strip() for c in s.split("|")]
+
+
+def _markdown_table(text: str) -> dict | None:
+    """标准 markdown 表格（表头 + 分隔线 + 数据）→ {columns, rows}；否则 None。"""
+    lines = _split_lines(text)
+    if not lines or not any("|" in ln for ln in lines):
+        return None
+    sep_idx = next((i for i, ln in enumerate(lines) if _is_md_sep_line(ln)), None)
+    if sep_idx is None or sep_idx == 0:
+        return None
+    cols = _split_md_row(lines[sep_idx - 1])
+    if not cols:
+        return None
+    rows = [
+        _split_md_row(ln)
+        for ln in lines[sep_idx + 1 :]
+        if ln.strip() and not _is_md_sep_line(ln)
+    ]
+    return _to_table(cols, _pad_rows(cols, rows))
+
+
 def _pad_rows(cols: list[str], rows: list[list[str]]) -> list[list[str]]:
     n = len(cols)
     return [r[:n] + [""] * (n - len(r)) for r in rows]
@@ -85,6 +125,10 @@ def parse_getenv(text: str) -> dict:
 
 
 def parse_help(text: str) -> dict:
+    """help：优先标准 markdown 表格（`|cmd|desc` + 分隔线），兼容 tab 分隔。"""
+    md = _markdown_table(text)
+    if md is not None:
+        return md
     raw = _tab_rows(text)
     if raw and len(raw[0]) >= 2:
         return _to_table(raw[0], _pad_rows(raw[0], raw[1:]))
@@ -115,11 +159,20 @@ PARSERS: dict[str, Any] = {
 def parse_tool_output(tool: str, text: str) -> dict:
     """入口：返回 {columns, rows, raw, fallback}。未注册/解析失败回落原文。"""
     fn = PARSERS.get(tool)
-    if fn is None:
-        return {"columns": [], "rows": [], "raw": text, "fallback": True}
-    try:
-        out = fn(text)
-    except Exception:
+    out = None
+    if fn is not None:
+        try:
+            out = fn(text)
+        except Exception:
+            out = None
+    # 未注册 / 抛异常 / 无行结果 → 尝试标准 markdown 表格兜底
+    if out is None or not out.get("rows"):
+        md = _markdown_table(text)
+        if md is not None:
+            md.setdefault("raw", text)
+            md.setdefault("fallback", False)
+            return md
+    if out is None:
         return {"columns": [], "rows": [], "raw": text, "fallback": True}
     out.setdefault("raw", text)
     out.setdefault("fallback", False)

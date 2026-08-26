@@ -23,7 +23,7 @@ FastAPI 后端 (Python)
       skynet debug console (127.0.0.1:8000)
 ```
 
-- **后端**：Python 3.13 + FastAPI + LangChain/LangGraph + mcp SDK + SQLite（WAL）
+- **后端**：Python 3.12（uv 托管）+ FastAPI + LangChain/LangGraph + mcp SDK + SQLite（WAL）
 - **前端**：React 19 + Vite + TS + Tailwind（照抄 NL2SQL-AI 的对话 UI 模式）+ ECharts
 - **LLM**：OpenAI 兼容接口（.env 配置，如硅基流动/DeepSeek）
 
@@ -34,8 +34,8 @@ FastAPI 后端 (Python)
 #    部署与启动方式见 skynet-mcp 仓库 README：https://github.com/losophy/skynet-mcp
 #    启动后确认 http://127.0.0.1:8765/mcp 可访问，再继续下面步骤
 
-# 2) 客户端后端 venv
-python.exe -m venv .venv
+# 2) 客户端后端 venv（用 uv 托管的 Python 3.12）
+uv venv --python 3.12 .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 
 # 3) 前端

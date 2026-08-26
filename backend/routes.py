@@ -90,7 +90,7 @@ async def get_agent() -> SkynetAgent:
                         detail="LLM 未配置：请在 .env 设置 LLM_MODEL_NAME / LLM_API_KEY / LLM_BASE_URL",
                     )
                 meta = await state.mcp_conn.list_tools()
-                tools, danger_map = build_langchain_tools(mcp_conn, meta)
+                tools, danger_map = build_langchain_tools(state.mcp_conn, meta)
                 _agent = SkynetAgent(tools, danger_map)
     return _agent
 

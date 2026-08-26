@@ -31,7 +31,7 @@ FastAPI 后端 (Python)
 
 ```bash
 # 1) Linux 内部署并启动 skynet-mcp server（HTTP 模式）
-git clone <skynet-mcp 仓库地址> && cd skynet-mcp
+git clone https://github.com/losophy/skynet-mcp && cd skynet-mcp
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt   # 按项目实际依赖文件调整
 nohup .venv/bin/python -m skynet_mcp.main --transport http --http-port 8765 >/tmp/skynet-mcp-http.log 2>&1 &

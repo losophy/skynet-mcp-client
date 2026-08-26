@@ -191,10 +191,10 @@ export default function App() {
         )}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-gray-400 mt-24">
-              <p className="text-lg font-medium text-gray-500">skynet 调试助手</p>
-              <p className="text-sm mt-1">用自然语言直接控制 skynet debug console</p>
-              <p className="text-xs mt-4 text-gray-300">例：列出所有服务 · 查看各服务内存 · 杀掉 watchdog</p>
+            <div className="text-center text-gray-400 mt-36">
+              <p className="text-4xl font-semibold text-gray-600">skynet 调试助手</p>
+              <p className="text-lg mt-4 text-gray-500">用自然语言直接控制 skynet debug console</p>
+              <p className="text-base mt-8 text-gray-400">例：列出所有服务 · 查看各服务内存 · 杀掉 watchdog</p>
             </div>
           )}
           {messages.map((m) => (

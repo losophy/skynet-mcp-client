@@ -122,6 +122,23 @@ export async function listSessions(): Promise<SessionSummary[]> {
   return r.json();
 }
 
+/** 历史消息（后端 GET /api/sessions/{id}） */
+export interface HistoryMessage {
+  id: number;
+  role: "user" | "assistant" | "system";
+  content: string;
+  ts: string;
+  meta: Record<string, unknown>;
+}
+
+export async function fetchSession(
+  sessionId: string,
+): Promise<{ id: string; title: string; messages: HistoryMessage[] }> {
+  const r = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   const r = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
     method: "DELETE",

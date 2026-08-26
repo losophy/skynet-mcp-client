@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Composer from "./components/Composer";
 import MessageBubble from "./components/MessageBubble";
 import SessionList from "./components/SessionList";
-import { fetchStatus, listSessions, streamChat, streamHumanFeedback } from "./lib/agentApi";
+import { deleteSession, fetchSession, fetchStatus, listSessions, streamChat, streamHumanFeedback } from "./lib/agentApi";
 import type { AgentEvent, Message, SessionSummary } from "./types/agent";
 
 let msgSeq = 0;
@@ -27,12 +27,19 @@ export default function App() {
     });
   }, []);
 
+  const refreshSessions = useCallback(() => {
+    listSessions()
+      .then((s) => setSessions(s))
+      .catch(() => {});
+  }, []);
+
   const handleEvent = useCallback(
     (event: AgentEvent) => {
       switch (event.type) {
         case "session_created":
           sessionIdRef.current = event.session_id;
           setSessionId(event.session_id);
+          refreshSessions();
           break;
         case "progress":
           updateLast((m) => ({ ...m, content: m.content + event.content, streaming: true }));
@@ -55,7 +62,7 @@ export default function App() {
           break;
       }
     },
-    [updateLast],
+    [updateLast, refreshSessions],
   );
 
   const runStream = useCallback(
@@ -107,6 +114,24 @@ export default function App() {
     abortRef.current?.abort();
   }, []);
 
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      try {
+        await deleteSession(id);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return;
+      }
+      if (sessionIdRef.current === id) {
+        sessionIdRef.current = null;
+        setSessionId(null);
+        setMessages([]);
+      }
+      refreshSessions();
+    },
+    [refreshSessions],
+  );
+
   useEffect(() => {
     fetchStatus()
       .then((s) => setStatus(s))
@@ -121,10 +146,24 @@ export default function App() {
       <SessionList
         sessions={sessions}
         currentId={sessionId}
-        onSelect={(id) => {
+        onSelect={async (id) => {
           setSessionId(id);
           sessionIdRef.current = id;
+          setError(null);
+          try {
+            const s = await fetchSession(id);
+            setMessages(
+              s.messages.map((m, i) => ({
+                id: `h${i}`,
+                role: m.role as Message["role"],
+                content: m.content,
+              })),
+            );
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
         }}
+        onDelete={handleDeleteSession}
         onNew={() => {
           setSessionId(null);
           sessionIdRef.current = null;

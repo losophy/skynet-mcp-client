@@ -256,7 +256,9 @@ async def chat(req: ChatRequest) -> StreamingResponse:
         )
     agent = await get_agent()
     session_id = req.session_id or uuid.uuid4().hex[:16]
-    state.db.create_session(session_id)
+    # 标题取会话首条消息（INSERT OR IGNORE，已存在会话不覆盖）
+    title = req.message.strip().replace("\n", " ")[:24]
+    state.db.create_session(session_id, title=title)
     state.db.add_message(session_id, "user", req.message)
 
     async def gen():

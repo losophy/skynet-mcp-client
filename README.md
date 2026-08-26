@@ -34,7 +34,7 @@ FastAPI 后端 (Python)
 git clone https://github.com/losophy/skynet-mcp && cd skynet-mcp
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt   # 按项目实际依赖文件调整
-nohup .venv/bin/python -m skynet_mcp.main --transport http --http-port 8765 >/tmp/skynet-mcp-http.log 2>&1 &
+.venv/bin/python -m skynet_mcp.main --http-port 8765
 
 # 2) 客户端后端 venv
 python.exe -m venv .venv

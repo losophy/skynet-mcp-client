@@ -39,7 +39,7 @@ python.exe -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 
 # 3) 前端
-cd frontend && npm install && npm run build && cd ..
+cd frontend; npm install; npm run build; cd ..
 
 # 4) 配置 LLM（复制 .env.example → .env，填 LLM_MODEL_NAME/LLM_API_KEY/LLM_BASE_URL）
 ```
@@ -53,7 +53,7 @@ cd frontend && npm install && npm run build && cd ..
 .venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8100
 
 # 3) 前端开发模式（代理 /api，另开一个终端）
-cd frontend && npm run dev
+cd frontend; npm run dev
 
 # 访问：http://127.0.0.1:8100
 ```

@@ -1,0 +1,53 @@
+"""parsers 单元测试。"""
+from __future__ import annotations
+
+import sys
+
+sys.path.insert(0, r"D:\AgentProjects\skynet-mcp-client")
+
+from backend.parsers import parse_tool_output  # noqa: E402
+
+
+def test_list_parses_addr_and_detail() -> None:
+    r = parse_tool_output("list", ":01000004\tsnlua cmaster\n:01000005\tsnlua cslave\n")
+    assert r["columns"] == ["addr", "detail"]
+    assert len(r["rows"]) == 2
+    assert r["rows"][0]["addr"] == ":01000004"
+    assert r["rows"][0]["detail"] == "snlua cmaster"
+    assert r["fallback"] is False
+
+
+def test_mem_parses_size_bytes() -> None:
+    r = parse_tool_output("mem", "1\t1024K\n2\t512M\n3\t64\n")
+    assert [x["size_bytes"] for x in r["rows"]] == [1048576, 536870912, 64]
+    assert r["rows"][0]["size"] == "1024K"
+
+
+def test_stat_parses_columns() -> None:
+    r = parse_tool_output("stat", "1\t0\t0\t100\n2\t5\t1\t200\n")
+    assert r["columns"] == ["addr", "queue", "pending", "total"]
+    assert r["rows"][1]["pending"] == "1"
+
+
+def test_stat_with_header_row() -> None:
+    r = parse_tool_output("stat", "addr\tqueue\tpending\ttotal\n1\t0\t0\t100\n")
+    assert r["columns"] == ["addr", "queue", "pending", "total"]
+    assert r["rows"][0]["addr"] == "1"
+
+
+def test_getenv_parses_key_value() -> None:
+    r = parse_tool_output("getenv", "standalone\t0.0.0.0:2013\n")
+    assert r["rows"][0] == {"key": "standalone", "value": "0.0.0.0:2013"}
+
+
+def test_unknown_tool_falls_back() -> None:
+    r = parse_tool_output("info", "some\nmulti-line\ntext")
+    assert r["fallback"] is True
+    assert "multi-line" in r["raw"]
+
+
+def test_malformed_line_does_not_crash() -> None:
+    # stat 列数不足：补空列而非抛异常
+    r = parse_tool_output("stat", "1\t0\n2\t0\t0\t100\n")
+    assert len(r["rows"]) == 2
+    assert r["rows"][0]["pending"] == ""

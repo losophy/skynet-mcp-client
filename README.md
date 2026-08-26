@@ -30,11 +30,9 @@ FastAPI 后端 (Python)
 ## 安装
 
 ```bash
-# 1) Linux 内部署并启动 skynet-mcp server（HTTP 模式）
-git clone https://github.com/losophy/skynet-mcp && cd skynet-mcp
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt   # 按项目实际依赖文件调整
-.venv/bin/python -m skynet_mcp.main --http-port 8765
+# 1) 手动拉起 skynet-mcp server（HTTP 模式 :8765）
+#    部署与启动方式见 skynet-mcp 仓库 README：https://github.com/losophy/skynet-mcp
+#    启动后确认 http://127.0.0.1:8765/mcp 可访问，再继续下面步骤
 
 # 2) 客户端后端 venv
 python.exe -m venv .venv
@@ -49,14 +47,15 @@ cd frontend && npm install && npm run build && cd ..
 ## 启动
 
 ```powershell
-# 一键：自动拉起 WSL server → 起后端 → 开浏览器
-.\start.ps1
+# 1) MCP server（先手动拉起，见安装部分 / skynet-mcp 仓库 README）
 
-# 或手动
-#   WSL 侧：起 HTTP server（见上）
-#   后端：  .venv\Scripts\python.exe -m uvicorn backend.app:app --port 8100
-#   前端：  cd frontend && npm run dev  （开发模式，代理 /api）
-#   访问：  http://127.0.0.1:8100
+# 2) 客户端后端（托管前端 dist）
+.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8100
+
+# 3) 前端开发模式（代理 /api，另开一个终端）
+cd frontend && npm run dev
+
+# 访问：http://127.0.0.1:8100
 ```
 
 ## 配置（.env）
@@ -92,5 +91,4 @@ backend/        FastAPI + LangGraph Agent + MCP client + parsers + db
 frontend/       React 聊天 UI（SessionList / MessageBubble / HumanApprovalCard / ResultTable / ResultChart）
 data/           SQLite（calls/messages/sessions，gitignore）
 tests/          单元 + 集成测试
-start.ps1       一键启动
 ```

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from . import state
 from . import danger as danger_mod
-from .agent import SkynetAgent
+from .agent import OUT_OF_SCOPE_HINT, SkynetAgent
 from .config import LLM_API_KEY, LLM_MODEL
 from .parsers import parse_tool_output
 from .tools_adapter import build_langchain_tools
@@ -191,8 +191,13 @@ def _record_tool_calls(
 async def _emit_stream(
     agent: SkynetAgent, config: dict, initial: dict | Command, session_id: str | None
 ):
-    """驱动 graph.astream，转 SSE 事件；结束后落库工具调用与 AI 回复。"""
+    """驱动 graph.astream，转 SSE 事件；结束后落库工具调用与 AI 回复。
+
+    兜底：本次执行未调用任何工具却直接作答（LLM 违规自由发挥）时，
+    把最终文本替换为 OUT_OF_SCOPE_HINT，保证用户只看到工具结果或提示。
+    """
     last_text = ""
+    start_n = len((agent.graph.get_state(config).values or {}).get("messages", []))
     try:
         async for mode, chunk in agent.graph.astream(
             initial,
@@ -230,6 +235,14 @@ async def _emit_stream(
         final = msgs[-1]
         if hasattr(final, "content") and final.content:
             last_text = final.content
+    # 兜底：本次执行未产生任何 ToolMessage（LLM 没调工具直接自由作答）→ 替换为固定提示
+    if (
+        not gs.next
+        and not values.get("__interrupt__")
+        and not any(isinstance(m, ToolMessage) for m in msgs[start_n:])
+        and last_text.strip()
+    ):
+        last_text = OUT_OF_SCOPE_HINT
     yield _sse({"type": "result", "text": last_text, "render": last_render})
 
 

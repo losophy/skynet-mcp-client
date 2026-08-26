@@ -165,8 +165,42 @@ def test_danger_interrupt_reject() -> None:
     print("PASS 3 危险工具 interrupt + reject")
 
 
+def test_out_of_scope_llm_free_text_replaced() -> None:
+    """LLM 未调工具直接自由作答 → routes 兜底替换为固定提示。"""
+    import json
+    import os
+    import tempfile
+
+    from backend import routes, state
+    from backend.agent import OUT_OF_SCOPE_HINT
+    from backend.db import Database
+
+    state.db = Database(os.path.join(tempfile.mkdtemp(), "scope.db"))
+    executed.clear()
+    model = FakeMessagesListChatModel(
+        responses=[AIMessage(content="你好呀，有什么可以帮你？")]
+    )
+    agent = build_agent(model)
+    config = {"configurable": {"thread_id": "t-out-of-scope"}}
+
+    async def run():
+        events = []
+        async for ev in routes._emit_stream(
+            agent, config, {"messages": [HumanMessage(content="你好")]}, None
+        ):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(run())
+    parsed = [json.loads(ev.replace("data: ", "", 1)) for ev in events]
+    texts = [p["text"] for p in parsed if p["type"] == "result"]
+    assert texts and texts[-1] == OUT_OF_SCOPE_HINT, f"应替换为提示: {texts!r}"
+    print("PASS 4 LLM 自由发挥被替换为提示")
+
+
 if __name__ == "__main__":
     test_normal_tool_call()
     test_danger_interrupt_approve()
     test_danger_interrupt_reject()
+    test_out_of_scope_llm_free_text_replaced()
     print("ALL PASS")

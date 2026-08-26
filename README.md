@@ -17,7 +17,7 @@ FastAPI 后端 (Python)
    ├─ mcp SDK client（streamable-http）
    │        │  http://127.0.0.1:8765/mcp（WSL2 localhost 转发）
    │        ▼
-   └─ skynet-mcp server（WSL 内，HTTP 模式）
+   └─ skynet-mcp server（Linux 内，HTTP 模式）
                │  工具调用（每次一连接）
                ▼
       skynet debug console (127.0.0.1:8000)
@@ -30,11 +30,14 @@ FastAPI 后端 (Python)
 ## 安装
 
 ```bash
-# 1) WSL 内启动 skynet-mcp server（HTTP 模式）
-wsl -d Ubuntu -- bash -lc "cd /home/losophy/skynet-mcp && nohup .venv/bin/python -m skynet_mcp.main --transport http --http-port 8765 >/tmp/skynet-mcp-http.log 2>&1 &"
+# 1) Linux 内部署并启动 skynet-mcp server（HTTP 模式）
+git clone <skynet-mcp 仓库地址> && cd skynet-mcp
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt   # 按项目实际依赖文件调整
+nohup .venv/bin/python -m skynet_mcp.main --transport http --http-port 8765 >/tmp/skynet-mcp-http.log 2>&1 &
 
 # 2) 客户端后端 venv
-"C:\Users\Admin\.workbuddy\binaries\python\versions\3.13.12\python.exe" -m venv .venv
+python.exe -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 
 # 3) 前端

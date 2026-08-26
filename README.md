@@ -27,6 +27,40 @@ FastAPI 后端 (Python)
 - **前端**：React 19 + Vite + TS + Tailwind（照抄 NL2SQL-AI 的对话 UI 模式）+ ECharts
 - **LLM**：OpenAI 兼容接口（.env 配置，如硅基流动/DeepSeek）
 
+## 一次完整请求的链路
+
+以「列出所有服务」为例，从输入到回显的完整流转：
+
+```
+你在浏览器输入 "列出所有服务"
+        ↓
+前端 React 把这个文本打包成 POST /api/chat 请求
+        ↓
+FastAPI 后端收到，交给 LangGraph Agent（LLM 大脑）
+        ↓
+Agent 决定调用 MCP 的 "list" 工具
+        ↓
+通过 MCP 协议（streamable-http）发给 skynet-mcp 服务端
+        ↓
+skynet-mcp 把 MCP 请求翻译成裸 socket POST 命令 "list"
+        ↓
+发给 skynet debug console（127.0.0.1:8000）
+        ↓
+skynet 执行 list，返回裸文本 + <CMD OK>
+        ↓
+skynet-mcp 解析裸文本，包装成 MCP 响应
+        ↓
+skynet-mcp-client 收到工具执行结果，回填给 Agent
+        ↓
+LLM 把原始数据翻译成中文："当前有 2 个服务：launcher 和 debug_console"
+        ↓
+通过 SSE 流式推送给前端
+        ↓
+浏览器把文字渲染成你看到的对话气泡
+```
+
+危险命令（如 kill / start）会在这条链路上多一步：Agent 发起调用前先弹出审批卡，等你点「批准执行」才继续往下执行。
+
 ## 安装
 
 ```bash
